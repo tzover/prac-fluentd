@@ -1,0 +1,2 @@
+FROM influxdb:1.8.4
+EXPOSE 8086

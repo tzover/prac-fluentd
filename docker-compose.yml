@@ -1,0 +1,127 @@
+version: "3.3"
+services:
+  # frontend:
+  #   image: ${PROJ_NAME}-react:latest
+  #   container_name: ${PROJ_NAME}-react
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   volumes:
+  #     - ./frontend/app:/home/app
+  #     - front-volume:/home/app/node_modules
+  #   ports:
+  #     - ${FRONT_PORT}:${FRONT_PORT}
+  # depends_on:
+  #   - fluentd
+  # logging:
+  #   driver: fluentd
+  #   options:
+  #     fluentd-address: localhost:24224
+  #     tag: docker.{{.Name}}
+  #     fluentd-async-connect: "true"
+  # tty: true
+
+  go:
+    image: ${PROJ_NAME}-golang:latest
+    container_name: ${PROJ_NAME}-golang
+    build:
+      context: ./go
+      dockerfile: Dockerfile
+    volumes:
+      - ./go/app:/go/src/app
+    ports:
+      - ${GO_PORT}:${GO_PORT}
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: localhost:24224
+        tag: golang.{{.Name}}
+        fluentd-async-connect: "true"
+    tty: true
+    depends_on:
+      - fluentd
+
+  # python:
+  #   image: ${PROJ_NAME}-python:latest
+  #   container_name: ${PROJ_NAME}-python
+  #   build:
+  #     context: ./python
+  #     dockerfile: Dockerfile
+  #   volumes:
+  #     - ./python/app:/src
+  #   ports:
+  #     - ${PY_PORT}:${PY_PORT}
+  # depends_on:
+  #   - fluentd
+  # logging:
+  #   driver: fluentd
+  #   options:
+  #     fluentd-address: localhost:24224
+  #     tag: docker.{{.Name}}
+  #     fluentd-async-connect: "true"
+  # tty: true
+
+  fluentd:
+    image: ${PROJ_NAME}-fluentd:latest
+    container_name: ${PROJ_NAME}-fluentd
+    build:
+      context: ./fluentd
+      dockerfile: Dockerfile
+    ports:
+      - ${FLUENTD_PORT}:${FLUENTD_PORT}
+    environment:
+      - FLUENTD_CONF=fluent.conf
+    volumes:
+      - "./fluentd/config/:/fluentd/etc/"
+      - "./fluentd/logs/:/home/log/"
+    depends_on:
+      - influxdb
+    # restart: always
+
+  grafana:
+    image: ${PROJ_NAME}-grafana:latest
+    container_name: ${PROJ_NAME}-grafana
+    build:
+      context: ./grafana
+      dockerfile: Dockerfile
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+    ports:
+      - ${GRAFANA_PORT}:3000
+    volumes:
+      - grafana-volume:/var/lib/grafana
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: localhost:24224
+        tag: grafana.{{.Name}}
+        fluentd-async-connect: "true"
+    depends_on:
+      - influxdb
+  influxdb:
+    image: ${PROJ_NAME}-influxdb:latest
+    container_name: ${PROJ_NAME}-influxdb
+    build:
+      context: ./influxdb
+      dockerfile: Dockerfile
+    environment:
+      - INFLUXDB_ADMIN_USER_PASSWORD=${INFLUXDB_ADMIN_USER_PASSWORD}
+      - INFLUXDB_ADMIN_USER_TOKEN=${INFLUXDB_ADMIN_USER_TOKEN}
+    ports:
+      # - 8084:8083
+      - ${INFLUX_PORT}:${INFLUX_PORT}
+    volumes:
+      - influxdb-volume:/var/lib/influxdb
+      - ./influxdb/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: localhost:24224
+        tag: influx.{{.Name}}
+        fluentd-async-connect: "true"
+volumes:
+  grafana-volume:
+  influxdb-volume:
+  front-volume:
+    name: ${PROJ_NAME}-front-volume
+    driver: local
